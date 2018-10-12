@@ -21,6 +21,7 @@ from trainer import validate  # For the validate (test) process
 from trainer import download_domain_scores
 from opts import opts  # The options for the project
 from data.prepare_data import generate_dataloader  # Prepare the data and dataloader
+from utils import Bce_logit_weight
 import time
 import ipdb
 
@@ -40,7 +41,8 @@ def main():
     # define loss function(criterion) and optimizer
 
     criterion = nn.CrossEntropyLoss().cuda()
-    criterion_bce = nn.BCEWithLogitsLoss().cuda()
+    # criterion_bce = nn.BCEWithLogitsLoss().cuda()
+    criterion_bce = Bce_logit_weight().cuda()
     np.random.seed(1)  ### fix the test data.
     random.seed(1)
     # optimizer = torch.optim.SGD(model.parameters(),
@@ -64,7 +66,7 @@ def main():
                                     momentum=args.momentum,
                                     weight_decay=args.weight_decay)
 
-    elif args.domain_feature == 'full_bilinear' or args.domain_feature == 'random_bilinear':
+    elif args.domain_feature == 'full_bilinear':
         print('the domain feature is full bilinear')
         optimizer_feature = torch.optim.SGD([
             {'params': model_source.module.base_conv.parameters(), 'name': 'conv'},

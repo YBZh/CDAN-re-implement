@@ -203,23 +203,14 @@ class Share_convs(nn.Module):
     def __init__(self, resnet_conv, convout_dimension, num_class, num_domain, args):
         super(Share_convs, self).__init__()
         self.base_conv = resnet_conv
-        for_std1 = pow(3, 1 / 2)
         self.fc = nn.Linear(convout_dimension, num_class)
         self.args = args
         if args.domain_feature == 'original':
             self.domain_classifier = nn.Linear(convout_dimension, num_domain)
         elif args.domain_feature == 'full_bilinear':
             self.softmax = nn.Softmax()
+            self.sigmoid = nn.Sigmoid()
             self.domain_classifier = nn.Linear(convout_dimension * num_class, num_domain)
-        elif args.domain_feature == 'random_bilinear':
-            self.softmax = nn.Softmax()
-            self.domain_classifier = nn.Linear(4096, num_domain)
-            self.bilinear_project1 = nn.Linear(convout_dimension, 4096)
-            self.bilinear_project2 = nn.Linear(num_class, 4096)
-            self.bilinear_project1.weight.data.uniform_(-for_std1, for_std1)
-            self.bilinear_project2.weight.data.uniform_(-for_std1, for_std1)
-            self.bilinear_project1.bias.data.uniform_(-for_std1, for_std1)
-            self.bilinear_project2.bias.data.uniform_(-for_std1, for_std1)
         else:
             raise ValueError('un-recognized domain feature:', args.domain_feature)
 
@@ -230,6 +221,7 @@ class Share_convs(nn.Module):
         if self.args.domain_feature == 'original':
             x = ReverseLayerF.apply(x, alpha)
             do_classes = self.domain_classifier(x)
+
         elif self.args.domain_feature == 'full_bilinear':
             x_transform = torch.unsqueeze(x, 2)
             # probability = classes
@@ -243,19 +235,11 @@ class Share_convs(nn.Module):
             do_feature = F.normalize(do_feature, p=2, dim=1)
             do_feature = ReverseLayerF.apply(do_feature, alpha)
             do_classes = self.domain_classifier(do_feature)
-        elif self.args.domain_feature == 'random_bilinear':
-            project_x = self.bilinear_project1(x)
-            probability = self.softmax(classes)
-            project_pro = self.bilinear_project2(probability)
-            project_feature = project_x * project_pro
-            project_feature = torch.sum(project_feature.view(project_feature.size(0), project_feature.size(1), -1),
-                                        dim=2)
-            project_feature = torch.mul(torch.sign(project_feature), torch.sqrt(torch.abs(project_feature) + 1e-12))
-            project_feature = F.normalize(project_feature, p=2, dim=1)
-            project_feature = ReverseLayerF.apply(project_feature, alpha)
-            do_classes = self.domain_classifier(project_feature)
 
-        return classes, do_classes
+        do_score = self.sigmoid(do_classes)
+        # do_weight = torch.exp(do_score)
+        return classes, do_classes, do_score
+
 
 def resnet50(pretrained=False, args=1, **kwargs):
     """Constructs a ResNet-50 model.

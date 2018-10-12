@@ -56,8 +56,8 @@ def train(train_loader_source, train_loader_source_batch, train_loader_target, t
 
     # dlabel_src = torch.zeros(num_source).long().cuda()
     # dlabel_tar = torch.ones(num_target).long().cuda()
-    dlabel_src = torch.zeros(num_source, 1).cuda()  ## label for BCE loss
-    dlabel_tar = torch.ones(num_target, 1).cuda()
+    dlabel_src = torch.zeros(num_source, 1).cuda()  ## label for BCE loss  source domain label is 0
+    dlabel_tar = torch.ones(num_target, 1).cuda()   ##  target domain label is 1
     dlabel_src_var = torch.autograd.Variable(dlabel_src)
     dlabel_tar_var = torch.autograd.Variable(dlabel_tar)
 
@@ -65,25 +65,26 @@ def train(train_loader_source, train_loader_source_batch, train_loader_target, t
     input_source_var = torch.autograd.Variable(input_source)
     target_source_var = torch.autograd.Variable(target_source)
     input_target_var = torch.autograd.Variable(input_target)
-
     data_time.update(time.time() - end)
-
     # calculate for the source data #######################################################
-    output_source, domain_source = model_source(input_source_var, domain_weight)
-    # print('domain score for source data', domain_source)
+
+    output_source, domain_source, do_s_weight = model_source(input_source_var, domain_weight)
+    ############# for source data, w = exp(1-do_s_weight)
+    do_s_weight = torch.exp(1 - do_s_weight)  ################# domain label for source is 0.
     loss_source = criterion(output_source, target_source_var)
-    loss_source_domain_dis = criterion_bce(domain_source, dlabel_src_var)
+    loss_source_domain_dis = criterion_bce(domain_source, dlabel_src_var, do_s_weight)
+
 
     prec1, prec5 = accuracy(output_source.data, target_source, topk=(1, 5))
     losses_label.update(loss_source.data[0], input_source.size(0))
     losses_source.update(loss_source_domain_dis.data[0], input_source.size(0))
     top1_source.update(prec1[0], input_source.size(0))
     top5_source.update(prec5[0], input_source.size(0))
-
     # calculate for the target data#####################################################
-    _, domain_target = model_source(input_target_var, domain_weight)
-    # print('domain socre for target data', domain_target)
-    loss_target_domain_dis = criterion_bce(domain_target, dlabel_tar_var)
+    _, domain_target, do_t_weight  = model_source(input_target_var, domain_weight)
+    ############## for target data, w = exp(do_t_weight)
+    do_t_weight = torch.exp(do_t_weight)  ################ domain label for target is 1.
+    loss_target_domain_dis = criterion_bce(domain_target, dlabel_tar_var, do_t_weight)
     losses_target.update(loss_target_domain_dis, input_target.size(0))
 
     total_loss = loss_source + loss_source_domain_dis + loss_target_domain_dis
@@ -142,7 +143,7 @@ def validate(val_loader_target, model_source, criterion, epoch, args):
         input_var = torch.autograd.Variable(input_source)  # volatile is fast in the evaluate model.
         target_var_source = torch.autograd.Variable(target_source)
         with torch.no_grad():
-            output_source, _ = model_source(input_var, 1)
+            output_source, _, _ = model_source(input_var, 1)
             # calculate for the source data #######################################################
             loss_source = criterion(output_source, target_var_source)
         prec1, prec5 = accuracy(output_source.data, target_source, topk=(1, 5))
@@ -199,7 +200,7 @@ def download_domain_scores(val_loader_target, val_loader_source, model_source, c
         input_var = torch.autograd.Variable(input_target, volatile=True)  # volatile is fast in the evaluate model.
         target_var_source = torch.autograd.Variable(target_source)
         # with torch.no_grad():
-        output_source, score_domain = model_source(input_var, 1)
+        output_source, score_domain, _ = model_source(input_var, 1)
         # calculate for the source data #######################################################
         loss_source = criterion(output_source, target_var_source)
         prec1, prec5 = accuracy(output_source.data, target_source, topk=(1, 5))
@@ -233,7 +234,7 @@ def download_domain_scores(val_loader_target, val_loader_source, model_source, c
         input_var = torch.autograd.Variable(input_source, volatile=True)  # volatile is fast in the evaluate model.
         target_var_source = torch.autograd.Variable(target_source)
         # with torch.no_grad():
-        output_source, score_domain = model_source(input_var, 1)
+        output_source, score_domain, _ = model_source(input_var, 1)
         # calculate for the source data #######################################################
         loss_source = criterion(output_source, target_var_source)
         prec1, prec5 = accuracy(output_source.data, target_source, topk=(1, 5))
