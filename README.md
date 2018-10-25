@@ -1,4 +1,4 @@
-# CADA-re-implement
+# CDAN-re-implement
 The re-implement of NIPS 2018 paper: Conditional Adversarial Domain Adaptation
 
 The results on the Office31 dataset (Resnet-50):
